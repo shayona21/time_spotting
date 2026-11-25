@@ -155,5 +155,5 @@ def download(job, filename):
 
 
 if __name__ == "__main__":
-    print("Open http://127.0.0.1:5050 in your browser. Press Ctrl+C to stop.")
-    app.run(host="127.0.0.1", port=5050, debug=False)
+    print("Open http://127.0.0.1:5080 in your browser. Press Ctrl+C to stop.")
+    app.run(host="127.0.0.1", port=5080, debug=False)
