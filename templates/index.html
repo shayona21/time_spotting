@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCR Spotting · Zibanka</title>
+<style>
+  :root { --ink:#1d1d1f; --muted:#6b6b70; --line:#e3e3e8; --bg:#f6f6f8;
+          --accent:#2f5bea; --accent-dark:#2347c0; --err:#b3261e; --ok:#1b7f45; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+         color:var(--ink); background:var(--bg); font-size:15px; line-height:1.45; }
+  header { display:flex; align-items:center; gap:14px; padding:14px 28px;
+           background:#fff; border-bottom:1px solid var(--line); }
+  header img { height:36px; }
+  header .brand-text { font-weight:700; font-size:20px; display:none; }
+  header .title { color:var(--muted); border-left:1px solid var(--line); padding-left:14px; }
+  main { max-width:900px; margin:28px auto; padding:0 20px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px;
+          padding:22px 24px; margin-bottom:20px; }
+  h2 { font-size:16px; margin:0 0 14px; }
+  .step { display:inline-block; width:24px; height:24px; border-radius:50%;
+          background:var(--accent); color:#fff; text-align:center; font-size:13px;
+          line-height:24px; margin-right:8px; }
+  input[type=file] { font-size:14px; }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:.04em;
+       color:var(--muted); padding:8px 10px; border-bottom:1px solid var(--line); }
+  td { padding:10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  tr:last-child td { border-bottom:none; }
+  td.label { font-weight:600; white-space:nowrap; }
+  td.value input[type=text] { width:120px; padding:6px 8px; border:1px solid #cfcfd6;
+          border-radius:6px; font-size:14px; }
+  td.value .unit { color:var(--muted); font-size:13px; margin-left:6px; }
+  td.help { color:var(--muted); font-size:13px; }
+  .actions { display:flex; gap:12px; align-items:center; }
+  button, .btn { background:var(--accent); color:#fff; border:none; border-radius:8px;
+          padding:11px 20px; font-size:15px; font-weight:600; cursor:pointer;
+          text-decoration:none; display:inline-block; }
+  button:hover, .btn:hover { background:var(--accent-dark); }
+  .link { color:var(--muted); font-size:14px; }
+  .errors { border-color:#f0c2be; background:#fdf3f2; color:var(--err); }
+  .errors pre { white-space:pre-wrap; font-size:12px; color:var(--ink); }
+  .done h2 { color:var(--ok); }
+  pre.summary { background:var(--bg); padding:12px; border-radius:8px; font-size:13px;
+          overflow-x:auto; }
+  .srt { font-family:ui-monospace,Menlo,monospace; font-size:13px; }
+  .srt div { padding:8px 0; border-bottom:1px dashed var(--line); white-space:pre-wrap; }
+  .working { display:none; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <img src="{{ url_for('static', filename='zibanka_logo.png') }}" alt="Zibanka"
+       onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+  <span class="brand-text">Zibanka</span>
+  <span class="title">TCR Spotting</span>
+</header>
+
+<main>
+  {% if errors %}
+  <div class="card errors">
+    <h2>Something needs fixing</h2>
+    {% for e in errors %}{% if loop.index == 2 and errors[0] == 'Processing failed.' %}<pre>{{ e }}</pre>{% else %}<div>{{ e }}</div>{% endif %}{% endfor %}
+  </div>
+  {% endif %}
+
+  {% if job %}
+  <div class="card done">
+    <h2>&#10003; Done: {{ total }} subtitles from {{ filename }}</h2>
+    <div class="actions" style="margin-bottom:16px">
+      <a class="btn" href="{{ url_for('download', job=job, filename=srt_name) }}">Download SRT</a>
+      <span class="link">{{ srt_name }}</span>
+    </div>
+    <pre class="summary">{{ summary }}</pre>
+    <h2 style="color:var(--ink); margin-top:18px">First {{ preview|length }} subtitles</h2>
+    <div class="srt">{% for b in preview %}<div>{{ b }}</div>{% endfor %}</div>
+  </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" onsubmit="startWork()">
+    <div class="card">
+      <h2><span class="step">1</span>Upload the dialogue stem</h2>
+      <input type="file" name="audio" accept="audio/*,video/*,.wav,.mxf" required>
+    </div>
+
+    <div class="card">
+      <h2><span class="step">2</span>Check the settings</h2>
+      <table>
+        <tr><th>Setting</th><th>Value</th><th>What it does</th></tr>
+        {% for key, flag, default, kind, label, unit, help in params %}
+        <tr>
+          <td class="label">{{ label }}</td>
+          <td class="value">
+            {% if kind == 'bool' %}
+              <input type="checkbox" name="{{ key }}" {% if values[key] %}checked{% endif %}>
+            {% else %}
+              <input type="text" name="{{ key }}" value="{{ values[key] }}">
+              <span class="unit">{{ unit }}</span>
+            {% endif %}
+          </td>
+          <td class="help">{{ help }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    <div class="card">
+      <h2><span class="step">3</span>Create the SRT</h2>
+      <div class="actions">
+        <button type="submit" id="run">Create SRT</button>
+        <a class="link" href="{{ url_for('index') }}">Reset to defaults</a>
+        <span class="working" id="working">Working… this can take a minute for a long file.</span>
+      </div>
+    </div>
+  </form>
+</main>
+<script>
+  function startWork() {
+    document.getElementById('run').disabled = true;
+    document.getElementById('run').textContent = 'Working…';
+    document.getElementById('working').style.display = 'inline';
+  }
+</script>
+</body>
+</html>
